@@ -1,5 +1,6 @@
 import os
 import sys
+import inspect
 import gradio as gr
 from agents.travel_agent import TravelAgent
 
@@ -11,12 +12,36 @@ except Exception as e:
     print("Please make sure GEMINI_API_KEY or GROQ_API_KEY is configured in your environment.")
     sys.exit(1)
 
-def process_query(user_query: str) -> str:
-    """Sends the user query to the travel agent and returns the itinerary response."""
+def get_chat_history() -> list[dict]:
+    """Filters the raw agent messages to return user and assistant dialogue dicts for the Chatbot UI."""
+    chat_history = []
+    
+    for msg in agent.messages:
+        if isinstance(msg, dict):
+            role = msg.get("role")
+            content = msg.get("content")
+            if role in ("user", "assistant") and content:
+                chat_history.append({"role": role, "content": content})
+                
+    return chat_history
+
+def process_query_and_update_chat(user_query: str) -> tuple[list[dict], str, str]:
+    """Sends query to travel agent, updates chatbot conversation, memory pane, and clears inputs."""
     if not user_query.strip():
-        return "⚠️ Please enter a travel request in the text box."
-    response = agent.plan_trip(user_query)
-    return response
+        history = get_chat_history()
+        print("Chat History:")
+        print(history)
+        return history, show_memory(), "⚠️ Please enter a message."
+        
+    # Execute travel agent plan loop
+    agent.plan_trip(user_query)
+    
+    history = get_chat_history()
+    print("Chat History:")
+    print(history)
+    
+    # Return updated chatbot history, updated memory display, and clear user input
+    return history, show_memory(), ""
 
 def show_memory() -> str:
     """Formats the current session memory state into clean markdown list."""
@@ -34,58 +59,112 @@ def show_memory() -> str:
     output += f"- 👥 **Traveler Count**: {mem['travelers'] if mem['travelers'] else '_Not Set_'}\n"
     return output
 
-def handle_clear() -> tuple[str, str]:
-    """Clears both the agent history and output displays."""
+def handle_clear() -> tuple[list[dict], str, str]:
+    """Clears both the agent history, session memory, and resets the chatbot interface."""
     agent.clear_memory()
-    return (
-        "*Session memory and chat history cleared successfully. Enter a new request to start over.*",
-        show_memory()
-    )
+    history = []
+    print("Chat History:")
+    print(history)
+    return history, show_memory(), ""
 
-# Define custom CSS styling (Dark theme glassmorphism elements, gradient headings, and modern typography)
+# Define custom CSS styling (Clean modern light-theme SaaS design)
 custom_css = """
 body {
-    background-color: #0b0f19 !important;
+    background-color: #f9fafb !important;
 }
 .gradio-container {
-    max-width: 1200px !important;
+    max-width: 1400px !important;
     margin: auto !important;
     font-family: 'Inter', -apple-system, sans-serif !important;
 }
 .title-container {
     text-align: center;
-    padding: 30px 0;
+    padding: 40px 0 20px 0;
     margin-bottom: 20px;
 }
 .main-title {
-    background: linear-gradient(135deg, #38bdf8, #818cf8);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    font-size: 2.8rem;
+    color: #111827 !important;
+    font-size: 2.5rem;
     font-weight: 800;
     margin: 0;
+    letter-spacing: -0.025em;
 }
 .sub-title {
-    color: #94a3b8;
+    color: #4b5563 !important;
     font-size: 1.1rem;
-    margin-top: 8px;
+    margin-top: 10px;
 }
 .memory-card {
-    background: #111827 !important;
-    border: 1px solid #1f2937 !important;
+    background-color: #ffffff !important;
+    border: 1px solid #d1d5db !important;
     border-radius: 12px !important;
     padding: 20px !important;
+    color: #111827 !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
 }
-.itinerary-output {
-    background: #111827 !important;
-    border: 1px solid #1f2937 !important;
+.memory-card * {
+    color: #111827 !important;
+}
+.memory-card li {
+    margin-bottom: 12px !important;
+    font-size: 0.95rem !important;
+}
+.chatbot-container {
+    background-color: #ffffff !important;
+    border: 1px solid #d1d5db !important;
+    border-radius: 16px !important;
+    padding: 24px !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+}
+.chatbot-container,
+.chatbot-container .message-wrap,
+.chatbot-container .message-row {
+    background-color: #ffffff !important;
+    color: #111827 !important;
+}
+.chatbot-container * {
+    color: #111827 !important;
+}
+.chatbot-container .user,
+.chatbot-container .user-message,
+.chatbot-container .message.user {
+    background-color: #f3f4f6 !important;
+    color: #111827 !important;
+    border: 1px solid #e5e7eb !important;
     border-radius: 12px !important;
-    padding: 25px !important;
-    min-height: 400px;
+    padding: 12px 16px !important;
+}
+.chatbot-container .bot,
+.chatbot-container .bot-message,
+.chatbot-container .message.bot {
+    background-color: #ffffff !important;
+    color: #111827 !important;
+    border: 1px solid #f3f4f6 !important;
+    border-radius: 12px !important;
+    padding: 12px 16px !important;
+}
+.chatbot-container .bot h1,
+.chatbot-container .bot h2,
+.chatbot-container .bot h3,
+.chatbot-container .bot h4 {
+    color: #111827 !important;
+    font-weight: 700 !important;
+    margin-top: 16px !important;
+    margin-bottom: 8px !important;
+}
+.chatbot-container a {
+    color: #2563eb !important;
+    text-decoration: underline !important;
 }
 .gradio-button {
     border-radius: 8px !important;
     font-weight: 600 !important;
+    padding: 12px 24px !important;
+    font-size: 0.95rem !important;
+    transition: all 0.2s ease !important;
+}
+.gradio-button:hover {
+    filter: brightness(0.95) !important;
 }
 """
 
@@ -95,8 +174,8 @@ with gr.Blocks() as demo:
     gr.HTML(
         """
         <div class="title-container">
-            <h1 class="main-title">✈️ AI Travel Agent & Itinerary Planner</h1>
-            <p class="sub-title">Powered by Groq (Llama-3.3) & Real-time Open-Meteo Weather API</p>
+            <h1 class="main-title">✈️ AI Travel Agent Assistant</h1>
+            <p class="sub-title">Plan smarter trips with AI-powered weather, attraction, and budget recommendations.</p>
         </div>
         """
     )
@@ -105,18 +184,15 @@ with gr.Blocks() as demo:
         # Left Panel (Inputs and state control)
         with gr.Column(scale=1):
             user_input = gr.Textbox(
-                label="🗺️ Plan your Trip / Update variables",
-                placeholder="Example: 'Plan a 2-day trip to Yilan. Budget: NT$5000. Style: Nature and Local Food.'",
-                lines=5,
+                label="🗺️ Ask your Travel Assistant",
+                placeholder="Example: 'Plan a 2-day trip to Yilan. Budget: NT$5000. Style: Nature.'",
+                lines=3,
                 interactive=True
             )
             
-            with gr.Row():
-                submit_btn = gr.Button("Generate Plan 🚀", variant="primary")
-                memory_btn = gr.Button("View Memory 🧠", variant="secondary")
-                
-            with gr.Row():
-                clear_btn = gr.Button("Clear Memory & History 🗑️", variant="stop")
+            submit_btn = gr.Button("Send Message 🚀", variant="primary")
+            memory_btn = gr.Button("View Memory 🧠", variant="secondary")
+            clear_btn = gr.Button("Clear Memory & Chat 🗑️", variant="stop")
             
             gr.Markdown("---")
             
@@ -126,18 +202,25 @@ with gr.Blocks() as demo:
                 elem_classes=["memory-card"]
             )
             
-        # Right Panel (Output Display)
-        with gr.Column(scale=2):
-            output_display = gr.Markdown(
-                value="*Your structured itinerary and budget details will be shown here after clicking 'Generate Plan' or entering a query.*",
-                elem_classes=["itinerary-output"]
-            )
+        # Right Panel (Chatbot Conversation History)
+        with gr.Column(scale=5):
+            chatbot_kwargs = {
+                "label": "Conversation History 💬",
+                "elem_classes": ["chatbot-container"],
+                "height": 700
+            }
+            # Add type="messages" if supported (e.g. Gradio 5.x), omit if not (e.g. Gradio 6.x)
+            sig = inspect.signature(gr.Chatbot.__init__)
+            if "type" in sig.parameters:
+                chatbot_kwargs["type"] = "messages"
+                
+            chatbot = gr.Chatbot(**chatbot_kwargs)
             
     # Define trigger mappings
     submit_btn.click(
-        fn=process_query,
+        fn=process_query_and_update_chat,
         inputs=[user_input],
-        outputs=[output_display]
+        outputs=[chatbot, memory_display, user_input]
     )
     
     memory_btn.click(
@@ -149,7 +232,7 @@ with gr.Blocks() as demo:
     clear_btn.click(
         fn=handle_clear,
         inputs=[],
-        outputs=[output_display, memory_display]
+        outputs=[chatbot, memory_display, user_input]
     )
 
 if __name__ == "__main__":
