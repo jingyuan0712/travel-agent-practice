@@ -1,5 +1,6 @@
 import os
 import json
+import logging
 from dotenv import load_dotenv
 from openai import OpenAI
 
@@ -8,12 +9,15 @@ from tools.attraction_tool import get_attractions
 from memory.session_memory import SessionMemory
 from memory.extractor import extract_travel_info
 from tools.google_places_tool import get_google_places
+from config import DEFAULT_MODEL, MAX_AGENT_LOOPS
+
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
 
 class TravelAgent:
-    def __init__(self, model_name: str = "llama-3.3-70b-versatile"):
+    def __init__(self, model_name: str = DEFAULT_MODEL):
         """Initialize the travel agent with Groq client, tools, and session memory."""
         api_key = os.getenv("GROQ_API_KEY")
         if not api_key:
@@ -108,23 +112,23 @@ class TravelAgent:
                         "properties": {
                             "city": {
                                 "type": "string",
-                                "description": "The destination city name (e.g., 'Taipei', 'Taichung', 'Yilan', 'Kaohsiung')."
+                                "description": "The destination city name (e.g., 'Taipei', 'Taichung', 'Yilan', 'Kaohsiung'). Omit if unknown."
                             },
                             "days": {
                                 "type": "integer",
-                                "description": "The duration of the trip in days."
+                                "description": "The duration of the trip in days. Only pass a valid integer, or omit this parameter entirely if unknown. Do NOT pass string placeholders."
                             },
                             "style": {
                                 "type": "string",
-                                "description": "The travel style or preferences (e.g., 'Luxury', 'Budget', 'Nature and Local Food', 'Foodie')."
+                                "description": "The travel style or preferences (e.g., 'Luxury', 'Budget', 'Nature and Local Food', 'Foodie'). Omit if unknown."
                             },
                             "budget": {
                                 "type": "integer",
-                                "description": "The budget limit in NT$."
+                                "description": "The budget limit in NT$. Only pass a valid integer, or omit this parameter entirely if unknown. Do NOT pass string placeholders."
                             },
                             "travelers": {
                                 "type": "integer",
-                                "description": "The number of travelers."
+                                "description": "The number of travelers. Only pass a valid integer, or omit this parameter entirely if unknown. Do NOT pass string placeholders."
                             }
                         }
                     }
@@ -384,174 +388,172 @@ class TravelAgent:
                     filtered.append(attr)
         return filtered
 
+    def _execute_tool(self, function_name: str, function_args: dict, current_tool_calls: list) -> dict | list[dict]:
+        """Helper to execute registered tools and return their outputs."""
+        if function_name == "update_session_memory":
+            tool_output = self.session_memory.update_memory(**function_args)
+            logger.info(f"Current Memory State: {tool_output}")
+            return tool_output
+            
+        elif function_name == "get_weather":
+            city = function_args.get("city")
+            try:
+                tool_output = get_weather(city)
+                logger.info(f"Weather Tool output: {tool_output}")
+                return tool_output
+            except ValueError as ve:
+                logger.warning(f"Weather Tool error caught: {ve}")
+                return {"error": str(ve)}
+                
+        elif function_name in ("get_attractions", "get_google_places"):
+            city = function_args.get("city")
+            try:
+                # 1. Fetch raw places from the requested tool
+                if function_name == "get_google_places":
+                    raw_places = get_google_places(city)
+                else:
+                    raw_places = get_attractions(city)
+                    
+                # 2. Enrich the places to include planning keys (estimated_cost, type, recommended_duration_hours, category)
+                enriched = self._enrich_attractions(raw_places, city)
+                
+                # 3. Retrieve latest rain probability
+                rain_prob = self._get_latest_rain_probability(city, current_tool_calls)
+                
+                # 4. Filter by weather
+                if rain_prob >= 50:
+                    filtered_by_weather = [attr for attr in enriched if attr.get("type") == "Indoor"]
+                else:
+                    filtered_by_weather = enriched
+                    
+                # 5. Store weather-filtered attractions
+                self.filtered_attractions = filtered_by_weather
+                
+                # 6. Perform logging
+                logger.info(f"[Weather Filter] Rain Probability: {rain_prob}%")
+                logger.info("Selected Attractions:")
+                for attr in filtered_by_weather:
+                    logger.info(f"* {attr.get('name')}")
+                
+                # 7. Apply budget filter
+                final_filtered = self._apply_budget_filter(filtered_by_weather)
+                logger.info(f"Filtered Attractions returned to LLM ({len(final_filtered)}): {[a['name'] for a in final_filtered]}")
+                return final_filtered
+                
+            except Exception as e:
+                logger.error(f"{function_name} Tool error caught: {e}", exc_info=True)
+                return {"error": str(e)}
+        
+        return {"error": f"Unknown tool: {function_name}"}
+
+    def _prepare_api_messages(self) -> list[dict]:
+        """Builds the message stack with the updated system context at the front."""
+        memory_context = self._get_memory_context()
+        return [
+            {"role": "system", "content": f"{self.system_instruction}\n\n{memory_context}"}
+        ] + self.messages
+
+    def _format_assistant_message(self, response_message) -> dict:
+        """Converts assistant ChatCompletionMessage to a plain dictionary compatible with history logs."""
+        assistant_msg_dict = {
+            "role": "assistant",
+            "content": response_message.content,
+        }
+        if response_message.tool_calls:
+            assistant_msg_dict["tool_calls"] = [
+                {
+                    "id": tc.id,
+                    "type": tc.type,
+                    "function": {
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments
+                    }
+                } for tc in response_message.tool_calls
+            ]
+        return assistant_msg_dict
+
+    def _execute_and_append_tool_calls(self, response_message) -> None:
+        """Logs, executes, and appends the outputs of all tool calls requested by the model."""
+        tool_calls = response_message.tool_calls
+        logger.info("Tool Calls:")
+        for tc in tool_calls:
+            logger.info(f"- {tc.function.name}")
+        
+        # 1. Format and append the assistant message to local history
+        assistant_msg_dict = self._format_assistant_message(response_message)
+        self.messages.append(assistant_msg_dict)
+        
+        # 2. Iterate through and execute all tool calls
+        for tool_call in tool_calls:
+            function_name = tool_call.function.name
+            function_args = json.loads(tool_call.function.arguments)
+            
+            logger.info(f"Executing: {function_name}")
+            
+            tool_output = self._execute_tool(function_name, function_args, tool_calls)
+            
+            # Store tool output in format matching OpenAI standards
+            tool_message = {
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "name": function_name,
+                "content": json.dumps(tool_output)
+            }
+            self.messages.append(tool_message)
+
     def plan_trip(self, user_query: str) -> str:
-        """Processes the query, checks/updates session memory, coordinates tool execution, and returns final plan."""
+        """Processes the query, checks/updates session memory, coordinates iterative tool execution, and returns final plan."""
         # Extract travel details deterministically before calling Groq
         extracted_info = extract_travel_info(user_query)
         if extracted_info:
-            print(f"[Agent] Deterministic Extraction - Updating memory with: {extracted_info}")
+            logger.info(f"Deterministic Extraction - Updating memory with: {extracted_info}")
             self.session_memory.update_memory(**extracted_info)
 
         # 1. Append the new user message to the conversation history
         self.messages.append({"role": "user", "content": user_query})
         
-        # 2. Get current memory state and format it for the system prompt
-        memory_context = self._get_memory_context()
-        
-        # Build the message stack with the updated system context at the front
-        api_messages = [
-            {"role": "system", "content": f"{self.system_instruction}\n\n{memory_context}"}
-        ] + self.messages
+        loop_count = 0
+        max_loops = MAX_AGENT_LOOPS
         
         try:
-            print(f"[Agent] Sending request to Groq (History length: {len(self.messages)})...")
-            # Step 1: Send request to the model
-            response = self.client.chat.completions.create(
-                model=self.model_name,
-                messages=api_messages,
-                tools=self.tools,
-                tool_choice="auto",
-                temperature=0.7
-            )
-            
-            response_message = response.choices[0].message
-            tool_calls = response_message.tool_calls
-            
-            # Step 2: Check if the model decided to call any tools
-            if tool_calls:
-                print(f"[Agent] Model requested tool execution: {[tc.function.name for tc in tool_calls]}")
+            while loop_count < max_loops:
+                loop_count += 1
+                logger.info(f"[Loop {loop_count}] Sending request...")
                 
-                # Convert assistant ChatCompletionMessage to plain dictionary
-                assistant_msg_dict = {
-                    "role": "assistant",
-                    "content": response_message.content,
-                }
-                if response_message.tool_calls:
-                    assistant_msg_dict["tool_calls"] = [
-                        {
-                            "id": tc.id,
-                            "type": tc.type,
-                            "function": {
-                                "name": tc.function.name,
-                                "arguments": tc.function.arguments
-                            }
-                        } for tc in response_message.tool_calls
-                    ]
+                # 2. Prepare context messages stack
+                api_messages = self._prepare_api_messages()
                 
-                # Append assistant's request message to local message history
-                self.messages.append(assistant_msg_dict)
-                
-                # Create a local list of tool response messages to send back in this turn
-                tool_responses = []
-                
-                # Step 3: Iterate through and execute all tool calls
-                for tool_call in tool_calls:
-                    function_name = tool_call.function.name
-                    function_args = json.loads(tool_call.function.arguments)
-                    
-                    tool_output = None
-                    
-                    if function_name == "update_session_memory":
-                        print(f"[Agent] Tool Call - update_session_memory: {function_args}")
-                        # Update session memory object
-                        tool_output = self.session_memory.update_memory(**function_args)
-                        print(f"[Agent] Current Memory State: {tool_output}")
-                        
-                    elif function_name == "get_weather":
-                        city = function_args.get("city")
-                        print(f"[Agent] Tool Call - get_weather for: '{city}'")
-                        try:
-                            tool_output = get_weather(city)
-                            print(f"[Agent] Weather Tool output: {tool_output}")
-                        except ValueError as ve:
-                            tool_output = {"error": str(ve)}
-                            print(f"[Agent] Weather Tool error caught: {ve}")
-                            
-                    elif function_name in ("get_attractions", "get_google_places"):
-                        city = function_args.get("city")
-                        print(f"[Agent] Tool Call - {function_name} for: '{city}'")
-                        try:
-                            # 1. Fetch raw places from the requested tool
-                            if function_name == "get_google_places":
-                                raw_places = get_google_places(city)
-                            else:
-                                raw_places = get_attractions(city)
-                                
-                            # 2. Enrich the places to include planning keys (estimated_cost, type, recommended_duration_hours, category)
-                            enriched = self._enrich_attractions(raw_places, city)
-                            
-                            # 3. Retrieve latest rain probability
-                            rain_prob = self._get_latest_rain_probability(city, tool_calls)
-                            
-                            # 4. Filter by weather
-                            if rain_prob >= 50:
-                                filtered_by_weather = [attr for attr in enriched if attr.get("type") == "Indoor"]
-                            else:
-                                filtered_by_weather = enriched
-                                
-                            # 5. Store weather-filtered attractions
-                            self.filtered_attractions = filtered_by_weather
-                            
-                            # 6. Perform logging
-                            print(f"[Weather Filter]\nRain Probability: {rain_prob}%")
-                            print()
-                            print("Selected Attractions:")
-                            print()
-                            for attr in filtered_by_weather:
-                                print(f"* {attr.get('name')}")
-                            print()
-                            
-                            # 7. Apply budget filter
-                            final_filtered = self._apply_budget_filter(filtered_by_weather)
-                            
-                            # Return the final filtered attractions list to the LLM
-                            tool_output = final_filtered
-                            print(f"[Agent] Filtered Attractions returned to LLM ({len(tool_output)}): {[a['name'] for a in tool_output]}")
-                            
-                        except Exception as e:
-                            tool_output = {"error": str(e)}
-                            print(f"[Agent] {function_name} Tool error caught: {e}")
-                    
-                    # Store tool output
-                    if tool_output is not None:
-                        tool_message = {
-                            "role": "tool",
-                            "tool_call_id": tool_call.id,
-                            "name": function_name,
-                            "content": json.dumps(tool_output)
-                        }
-                        tool_responses.append(tool_message)
-                        self.messages.append(tool_message)
-                
-                # Step 5: Send the complete updated history back to Groq for final response
-                print(f"[Agent] Sending second request to Groq with tool results...")
-                
-                # Update memory context since memory might have been modified by update_session_memory
-                updated_memory_context = self._get_memory_context()
-                
-                second_api_messages = [
-                    {"role": "system", "content": f"{self.system_instruction}\n\n{updated_memory_context}"}
-                ] + self.messages
-                
-                second_response = self.client.chat.completions.create(
+                response = self.client.chat.completions.create(
                     model=self.model_name,
-                    messages=second_api_messages,
+                    messages=api_messages,
+                    tools=self.tools,
+                    tool_choice="auto",
                     temperature=0.7
                 )
                 
-                final_content = second_response.choices[0].message.content
-                # Save assistant's final response to message history
-                self.messages.append({"role": "assistant", "content": final_content})
-                return final_content
+                response_message = response.choices[0].message
+                tool_calls = response_message.tool_calls
+                
+                # Check if the model decided to call any tools
+                if tool_calls:
+                    self._execute_and_append_tool_calls(response_message)
+                    # Continue the while loop to send tool results back to LLM
+                    continue
+                else:
+                    # No tool calls
+                    logger.info("No tool calls. Returning final response.")
+                    final_content = response_message.content
+                    self.messages.append({"role": "assistant", "content": final_content})
+                    return final_content
             
-            else:
-                # The model did not decide to call any tool
-                print("[Agent] Model did not request any tool call.")
-                final_content = response_message.content
-                self.messages.append({"role": "assistant", "content": final_content})
-                return final_content
-
+            # Exceeded safety loop limit
+            logger.warning("Safety Stop: Maximum loop iterations reached.")
+            safety_stop_message = "Agent stopped because maximum tool iterations were reached."
+            self.messages.append({"role": "assistant", "content": safety_stop_message})
+            return safety_stop_message
+            
         except Exception as e:
+            logger.error(f"Error executing agent loop: {e}", exc_info=True)
             error_msg = f"Error executing agent loop: {e}"
             self.messages.append({"role": "assistant", "content": error_msg})
             return error_msg
@@ -564,4 +566,4 @@ class TravelAgent:
         """Clears both the conversation message history and the session memory parameters."""
         self.session_memory.clear_memory()
         self.messages = []
-        print("[Agent] Conversation history and session memory cleared.")
+        logger.info("Conversation history and session memory cleared.")

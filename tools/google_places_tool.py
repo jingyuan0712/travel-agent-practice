@@ -1,6 +1,10 @@
 import os
+import logging
 import requests
 from tools.attraction_tool import get_attractions
+from config import TIMEOUT
+
+logger = logging.getLogger(__name__)
 
 def get_google_places(city: str) -> list[dict]:
     """Gets tourist attractions for a city using Google Places API.
@@ -9,7 +13,7 @@ def get_google_places(city: str) -> list[dict]:
     """
     api_key = os.getenv("GOOGLE_PLACES_API_KEY")
     if not api_key:
-        print("[Google Places Tool] GOOGLE_PLACES_API_KEY is not set. Falling back to local database.")
+        logger.info("GOOGLE_PLACES_API_KEY is not set. Falling back to local database.")
         return _fallback_to_local(city)
         
     url = "https://maps.googleapis.com/maps/api/place/textsearch/json"
@@ -19,15 +23,15 @@ def get_google_places(city: str) -> list[dict]:
     }
     
     try:
-        response = requests.get(url, params=params, timeout=10)
+        response = requests.get(url, params=params, timeout=TIMEOUT)
         if response.status_code != 200:
-            print(f"[Google Places Tool] API request failed with status code {response.status_code}. Falling back.")
+            logger.warning(f"API request failed with status code {response.status_code}. Falling back.")
             return _fallback_to_local(city)
             
         data = response.json()
         status = data.get("status")
         if status != "OK":
-            print(f"[Google Places Tool] API returned status {status}. Falling back.")
+            logger.warning(f"API returned status {status}. Falling back.")
             return _fallback_to_local(city)
             
         results = data.get("results", [])[:10]
@@ -43,7 +47,7 @@ def get_google_places(city: str) -> list[dict]:
         return places
         
     except Exception as e:
-        print(f"[Google Places Tool] Exception occurred: {e}. Falling back.")
+        logger.exception(f"Exception occurred in Google Places API: {e}. Falling back.")
         return _fallback_to_local(city)
 
 def _fallback_to_local(city: str) -> list[dict]:

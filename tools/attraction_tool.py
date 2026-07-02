@@ -384,36 +384,40 @@ def filter_by_category(city: str, category: str) -> list[dict]:
     return [attr for attr in attractions if attr.get("category", "").lower() == target_category]
 
 if __name__ == "__main__":
-    print("=== Testing Extended Attraction Tool ===")
+    import logging
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    logger = logging.getLogger(__name__)
+    
+    logger.info("=== Testing Extended Attraction Tool ===")
     
     # 1. Test get_attractions counts
-    print(f"Taipei Attractions Count: {len(get_attractions('Taipei'))} (Expected: 10)")
-    print(f"Taichung Attractions Count: {len(get_attractions('Taichung'))} (Expected: 10)")
-    print(f"Yilan Attractions Count: {len(get_attractions('Yilan'))} (Expected: 10)")
-    print(f"Kaohsiung Attractions Count: {len(get_attractions('Kaohsiung'))} (Expected: 10)")
-    print()
+    logger.info("Taipei Attractions Count: %d (Expected: 10)", len(get_attractions('Taipei')))
+    logger.info("Taichung Attractions Count: %d (Expected: 10)", len(get_attractions('Taichung')))
+    logger.info("Yilan Attractions Count: %d (Expected: 10)", len(get_attractions('Yilan')))
+    logger.info("Kaohsiung Attractions Count: %d (Expected: 10)", len(get_attractions('Kaohsiung')))
+    logger.info("")
     
     # 2. Test filter_by_type
-    print("Indoor Attractions in Taipei:")
+    logger.info("Indoor Attractions in Taipei:")
     indoor_taipei = filter_by_type("Taipei", "Indoor")
     for attr in indoor_taipei:
-        print(f"- {attr['name']} (Cost: NT${attr['estimated_cost']}, Duration: {attr['recommended_duration_hours']}h)")
-    print()
+        logger.info("- %s (Cost: NT$%d, Duration: %dh)", attr['name'], attr['estimated_cost'], attr['recommended_duration_hours'])
+    logger.info("")
     
     # 3. Test filter_by_category
-    print("Nature Attractions in Yilan:")
+    logger.info("Nature Attractions in Yilan:")
     nature_yilan = filter_by_category("Yilan", "Nature")
     for attr in nature_yilan:
-        print(f"- {attr['name']} ({attr['type']}, Duration: {attr['recommended_duration_hours']}h)")
-    print()
+        logger.info("- %s (%s, Duration: %dh)", attr['name'], attr['type'], attr['recommended_duration_hours'])
+    logger.info("")
     
     # 4. Test case sensitivity and error handling
-    print("Query '  kaohsiung  ' with category 'TEMPLE':")
+    logger.info("Query '  kaohsiung  ' with category 'TEMPLE':")
     temples_kaohsiung = filter_by_category("  kaohsiung  ", "TEMPLE")
     for attr in temples_kaohsiung:
-        print(f"- {attr['name']} ({attr['category']})")
-    print()
+        logger.info("- %s (%s)", attr['name'], attr['category'])
+    logger.info("")
     
     # 5. Test unsupported city
-    print("Tainan Attractions:")
-    print(get_attractions("Tainan"))
+    logger.info("Tainan Attractions:")
+    logger.info(get_attractions("Tainan"))

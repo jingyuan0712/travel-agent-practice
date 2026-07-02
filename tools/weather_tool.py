@@ -126,21 +126,24 @@ def _parse_weather_code(code: int) -> str:
         return "Unknown"
 
 if __name__ == "__main__":
-    # Test section to verify integration works
-    print("=== Testing Real Weather Tool (Open-Meteo API) ===")
+    import logging
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    logger = logging.getLogger(__name__)
+    
+    logger.info("=== Testing Real Weather Tool (Open-Meteo API) ===")
     
     # Test Yilan
     try:
-        print("Yilan Weather:")
-        print(get_weather("Yilan"))
+        logger.info("Yilan Weather:")
+        logger.info(get_weather("Yilan"))
     except Exception as e:
-        print(f"Error: {e}")
+        logger.error(f"Error: {e}")
         
-    print()
+    logger.info("")
     
     # Test Taipei
     try:
-        print("Taipei Weather:")
-        print(get_weather("Taipei"))
+        logger.info("Taipei Weather:")
+        logger.info(get_weather("Taipei"))
     except Exception as e:
-        print(f"Error: {e}")
+        logger.error(f"Error: {e}")

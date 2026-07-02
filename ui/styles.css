@@ -1,0 +1,97 @@
+body {
+    background-color: #f9fafb !important;
+}
+.gradio-container {
+    max-width: 1400px !important;
+    margin: auto !important;
+    font-family: 'Inter', -apple-system, sans-serif !important;
+}
+.title-container {
+    text-align: center;
+    padding: 30px 0 10px 0;
+    margin-bottom: 20px;
+}
+.main-title {
+    color: #111827 !important;
+    font-size: 2.2rem;
+    font-weight: 800;
+    margin: 0;
+    letter-spacing: -0.025em;
+}
+.sub-title {
+    color: #4b5563 !important;
+    font-size: 1rem;
+    margin-top: 5px;
+}
+.memory-card {
+    background-color: #ffffff !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 12px !important;
+    padding: 20px !important;
+    color: #111827 !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.02) !important;
+}
+.memory-card * {
+    color: #111827 !important;
+}
+.memory-card li {
+    margin-bottom: 10px !important;
+    font-size: 0.95rem !important;
+}
+.chatbot-container {
+    background-color: #ffffff !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 16px !important;
+    padding: 20px !important;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02) !important;
+}
+.chatbot-container,
+.chatbot-container .message-wrap,
+.chatbot-container .message-row {
+    background-color: #ffffff !important;
+    color: #111827 !important;
+}
+.chatbot-container * {
+    color: #111827 !important;
+}
+.chatbot-container .user,
+.chatbot-container .user-message,
+.chatbot-container .message.user {
+    background-color: #f3f4f6 !important;
+    color: #111827 !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 12px !important;
+    padding: 12px 16px !important;
+}
+.chatbot-container .bot,
+.chatbot-container .bot-message,
+.chatbot-container .message.bot {
+    background-color: #ffffff !important;
+    color: #111827 !important;
+    border: 1px solid #f3f4f6 !important;
+    border-radius: 12px !important;
+    padding: 12px 16px !important;
+}
+.chatbot-container .bot h1,
+.chatbot-container .bot h2,
+.chatbot-container .bot h3,
+.chatbot-container .bot h4 {
+    color: #111827 !important;
+    font-weight: 700 !important;
+    margin-top: 16px !important;
+    margin-bottom: 8px !important;
+}
+.chatbot-container a {
+    color: #2563eb !important;
+    text-decoration: underline !important;
+}
+.gradio-button {
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    padding: 12px 24px !important;
+    font-size: 0.95rem !important;
+    transition: all 0.2s ease !important;
+}
+.gradio-button:hover {
+    filter: brightness(0.95) !important;
+}

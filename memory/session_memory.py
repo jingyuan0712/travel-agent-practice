@@ -1,13 +1,15 @@
+DEFAULT_SCHEMA = {
+    "city": None,
+    "days": None,
+    "style": None,
+    "budget": None,
+    "travelers": None
+}
+
 class SessionMemory:
     def __init__(self):
         """Initialize empty session memory for travel planning details."""
-        self.memory = {
-            "city": None,
-            "days": None,
-            "style": None,
-            "budget": None,
-            "travelers": None
-        }
+        self.memory = DEFAULT_SCHEMA.copy()
 
     def update_memory(self, **kwargs) -> dict:
         """Updates memory with new key-value pairs, merging with existing data.
@@ -32,13 +34,7 @@ class SessionMemory:
 
     def clear_memory(self) -> None:
         """Resets all memory fields to None."""
-        self.memory = {
-            "city": None,
-            "days": None,
-            "style": None,
-            "budget": None,
-            "travelers": None
-        }
+        self.memory = DEFAULT_SCHEMA.copy()
 
     def show_memory(self) -> dict:
         """Returns the dictionary representation of memory for display purposes."""

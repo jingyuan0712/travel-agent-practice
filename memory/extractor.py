@@ -59,8 +59,11 @@ def extract_travel_info(message: str) -> dict:
     return detected
 
 if __name__ == "__main__":
-    # Test cases to verify the extractor
-    print("=== Testing Travel Extractor ===")
+    import logging
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    logger = logging.getLogger(__name__)
+    
+    logger.info("=== Testing Travel Extractor ===")
     
     test_cases = [
         "Plan a luxury 2-day trip to Taipei",
@@ -72,6 +75,6 @@ if __name__ == "__main__":
     ]
     
     for case in test_cases:
-        print(f"Input:  '{case}'")
-        print(f"Output: {extract_travel_info(case)}")
-        print("-" * 40)
+        logger.info("Input:  '%s'", case)
+        logger.info("Output: %s", extract_travel_info(case))
+        logger.info("-" * 40)
