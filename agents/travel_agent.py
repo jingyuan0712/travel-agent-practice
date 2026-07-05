@@ -38,6 +38,7 @@ class TravelAgent:
         self.filtered_attractions = []
         
         # Base system instructions
+        # Base system instructions
         self.system_instruction = (
             "You are an expert travel itinerary planner. Your goal is to generate detailed, realistic, "
             "and highly structured day-by-day travel itineraries based on live weather data, local attractions, "
@@ -62,6 +63,15 @@ class TravelAgent:
             "- Use bullet points for list items.\n"
             "- Use numbered schedules when detailing timetables (e.g. 1. 09:00 - Visit Elephant Mountain).\n"
             "- Explain and justify weather-related decisions in the day-by-day sections (e.g. explaining why certain indoor/outdoor attractions were chosen based on the weather forecast).\n\n"
+            "Strict Timing and Pacing Rules:\n"
+            "- The schedule must be logically paced. Allocate realistic visit durations for each attraction based on its type (e.g., 2-3 hours for large museums or hiking trails, 1-2 hours for parks and monuments).\n"
+            "- Allow sufficient buffer time for travel and check-ins.\n"
+            "- Explicitly reserve specific slots for meals (e.g., Lunch around 12:00 - 13:30, Dinner around 18:00 - 19:30) to make the itinerary practical.\n\n"
+            "Strict Transportation Recommendation Rules:\n"
+            "- For each attraction recommended in the schedule (except the final destination of each day), you MUST include transition instructions on how the user can travel to the next spot.\n"
+            "- Specify the recommended transit method (e.g., walking, MRT metro line, public bus, or taxi) and estimate the travel duration realistically based on location distance.\n"
+            "- Format the transit recommendation clearly directly under the attraction schedule entry. Example:\n"
+            "  `➔ 🚇 Transit: Take the Bannan MRT Line from Ximen Station to Taipei Main Station, then transfer to the Tamsui-Xinyi Line to Taipei 101 Station (approx. 20 mins).`\n\n"
             "Strict Weather-Aware Itinerary Planning Rules:\n"
             "- Prioritize indoor attractions during rainy weather (rain probability >= 50%).\n"
             "- Prioritize outdoor attractions during clear weather (rain probability < 50%).\n"
