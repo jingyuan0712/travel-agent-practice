@@ -31,6 +31,14 @@ def test_session_memory_operations():
     assert state["city"] is None
     assert state["days"] is None
 
+    # 5. Sanitize string placeholders check
+    mem.update_memory(days="None", budget="Not set", travelers="null", style="None")
+    state = mem.get_memory()
+    assert state["days"] is None
+    assert state["budget"] is None
+    assert state["travelers"] is None
+    assert state["style"] is None
+
 def test_extractor_regex_matching():
     """Verifies that extract_travel_info uses regular expressions to correctly extract parameters 
     like destination city, trip duration, budgets, style, and traveler count from dialogue strings."""

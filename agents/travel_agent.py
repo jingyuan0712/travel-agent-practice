@@ -115,20 +115,20 @@ class TravelAgent:
                                 "description": "The destination city name (e.g., 'Taipei', 'Taichung', 'Yilan', 'Kaohsiung'). Omit if unknown."
                             },
                             "days": {
-                                "type": "integer",
-                                "description": "The duration of the trip in days. Only pass a valid integer, or omit this parameter entirely if unknown. Do NOT pass string placeholders."
+                                "type": ["integer", "string"],
+                                "description": "The duration of the trip in days. Pass a valid integer (preferred) or a string placeholder if unknown."
                             },
                             "style": {
                                 "type": "string",
                                 "description": "The travel style or preferences (e.g., 'Luxury', 'Budget', 'Nature and Local Food', 'Foodie'). Omit if unknown."
                             },
                             "budget": {
-                                "type": "integer",
-                                "description": "The budget limit in NT$. Only pass a valid integer, or omit this parameter entirely if unknown. Do NOT pass string placeholders."
+                                "type": ["integer", "string"],
+                                "description": "The budget limit in NT$. Pass a valid integer (preferred) or a string placeholder if unknown."
                             },
                             "travelers": {
-                                "type": "integer",
-                                "description": "The number of travelers. Only pass a valid integer, or omit this parameter entirely if unknown. Do NOT pass string placeholders."
+                                "type": ["integer", "string"],
+                                "description": "The number of travelers. Pass a valid integer (preferred) or a string placeholder if unknown."
                             }
                         }
                     }

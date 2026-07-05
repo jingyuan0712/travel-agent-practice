@@ -18,6 +18,11 @@ class SessionMemory:
         """
         for key, value in kwargs.items():
             if key in self.memory and value is not None:
+                # Sanitize string placeholders indicating empty/null values
+                if isinstance(value, str) and value.strip().lower() in ("none", "not set", "null", "undefined", ""):
+                    self.memory[key] = None
+                    continue
+                    
                 # Convert numeric values to integer if possible
                 if key in ["days", "budget", "travelers"]:
                     try:
